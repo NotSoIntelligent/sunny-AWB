@@ -3,6 +3,7 @@
 
 #include "main.h"
 #include "bmpHeader.h"
+#include "awbCommon.h"
 
 int main(int argc, char *argv[])
 {
@@ -33,7 +34,12 @@ int main(int argc, char *argv[])
 	if (ret == -1) goto deinit;
 	else ret = 0;
 
-	/* TODO: Do Process */
+	/* AWB Process */
+	ret = awbProcess (buf, &dib);
+	if (ret) {
+		printf ("Error in AWB Processing\n");
+		goto deinit;
+	}
 
 	/* Add BMP File padding before saving to File */
 	ret = addPad(buf, &dib);

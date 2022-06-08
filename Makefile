@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall
-OBJS = main.o bmpOps.o
+OBJS = main.o bmpOps.o awbCore.o
 OUT = imgProcess
 
 all: $(OUT)
