@@ -6,6 +6,8 @@
 
 #include "awbTypes.h"
 
+#define CALIB 0
+
 /* Calculate RG and BG ratio and calculate Mean for it */
 /* Function assumes uncompressed RGB888 Format input buffer */
 struct colorScores calculateIlluminantScores (uint8_t *buf, dibHeader *dib)
@@ -15,7 +17,9 @@ struct colorScores calculateIlluminantScores (uint8_t *buf, dibHeader *dib)
 	float ratioRG = 0, ratioBG = 0;
 	struct colorScores score = {0};
 	struct RGBPix *pix = NULL;
-
+#if (CALIB)
+	float rgSum = 0, bgSum = 0;
+#endif
 	pix = (struct RGBPix*) buf;
 
 	/* Usually R/G and B/G performed on Bayer, but for current implementation we are multiplying RGB's G by 2 */	
@@ -24,7 +28,11 @@ struct colorScores calculateIlluminantScores (uint8_t *buf, dibHeader *dib)
 			ratioRG = ((float)pix->R / (2 * pix->G));
 			ratioBG = ((float)pix->B / (2 * pix->G));
 			pix++;
-			
+
+#if (CALIB)
+			rgSum = rgSum + ratioRG;
+			bgSum = bgSum + ratioBG;
+#endif
 			/* find illuminant */
 			tempScore[findFit(ratioRG, ratioBG)]++;
 		} else {
@@ -36,6 +44,11 @@ struct colorScores calculateIlluminantScores (uint8_t *buf, dibHeader *dib)
 	memcpy (&score, &tempScore, sizeof(int) * (NUM_ILLUMINANTS + 1));
 
 	printf ("Pixels Ignored = %d\n", ignorePxls);
+#if (CALIB)
+	rgSum = rgSum / (i - 1 - ignorePxls) ;
+	bgSum = bgSum / (i - 1 - ignorePxls) ;
+	printf ("CALIB rgSum = %f bgSum = %f\n", rgSum, bgSum);
+#endif
 
 	return score;
 }
@@ -122,9 +135,9 @@ int awbProcess (uint8_t *buf, dibHeader *dib)
 
 	printf ("Color Score High CCT : %d\n", score.highCCT);
 	printf ("Color Score D65      : %d\n", score.D65);
-	printf ("Color Score D50      : %d\n", score.D50);
 	printf ("Color Score CWF      : %d\n", score.CWF);
 	printf ("Color Score TL84     : %d\n", score.TL84);
+	printf ("Color Score U30      : %d\n", score.U30);
 	printf ("Color Score A        : %d\n", score.A);
 	printf ("Color Score H        : %d\n", score.H);
 	printf ("Color Score Low CCT  : %d\n", score.lowCCT);

@@ -14,9 +14,9 @@ struct RGBAPix {
 struct colorScores {
 	int highCCT;
 	int D65;
-	int D50;
 	int CWF;
 	int TL84;
+	int U30;
 	int A;
 	int H;
 	int lowCCT;
