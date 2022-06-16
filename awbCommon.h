@@ -44,9 +44,8 @@ struct awbMetaData {
 
 int findFit (float x, float y, float *fit);
 int awbProcess (uint8_t *buf, dibHeader *dib);
-float distBtw2Pts (float x1, float y1, float x2, float y2);
 float interpolate (float x1, float y1, float x2, float y2, float x);
-float calcEucDist (float side1, float side2, float base);
 struct awbMetaData calculateIlluminantScores (uint8_t *buf, dibHeader *dib);
 float calcVectDist (float x1, float y1, float x2, float y2, float x, float y, float refDist);
 void printMetaData (struct awbMetaData meta);
+int applyCCM (struct awbMetaData meta, uint8_t *buf, dibHeader *dib);

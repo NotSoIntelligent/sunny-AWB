@@ -104,7 +104,9 @@ int findFit (float x, float y, float *dist)
 		tempX = calcVectDist (refPts[i-1][0], refPts[i-1][1], refPts[i][0], refPts[i][1], x, y, refPtsDist[i-1]);
 		tempY = refPtsDist[i-1] - tempX;
 
-		*dist = (tempX < tempY) ? tempX : tempY;
+		tempY = (tempY >= 0) ? tempY : -tempY;
+		*dist = (tempX < tempY) ? tempX : -tempY;
+
 		if (tempX == 0) {
 			ret = i-1;
 		} else if (tempY == 0) {
@@ -126,22 +128,6 @@ float interpolate (float x1, float y1, float x2, float y2, float x)
 	return ( y1 + (((x - x1) * (y2 - y1)) / (x2 - x1)) );
 }
 
-float distBtw2Pts (float x1, float y1, float x2, float y2)
-{
-	return ( sqrt ((x2 - x1) * (x2 - x1)) + ((y2 - y1) * (y2 - y1)) );
-}
-
-float calcEucDist (float side1, float side2, float base)
-{
-	float area = 0, height = 0;
-	float s = ( side1 + side2 + base ) / 2;
-
-	area = sqrt ( s * (s - side1) * (s - side2) * (s - base) );
-	height = ( 2 * area ) / base;
-
-	return height;
-}
-
 float calcVectDist (float x1, float y1, float x2, float y2, float x, float y, float refDist)
 {
 	/* Form vector with x1,y1 and x2,y2
@@ -161,11 +147,13 @@ float calcVectDist (float x1, float y1, float x2, float y2, float x, float y, fl
 int awbProcess (uint8_t *buf, dibHeader *dib)
 {
 	struct awbMetaData meta = {0};
+	int ret = 0;
 	
 	meta = calculateIlluminantScores (buf,dib);
 	printMetaData (meta);
 
-	return 0;
+	ret = applyCCM (meta, buf, dib);
+	return ret;
 }
 
 void printMetaData (struct awbMetaData meta)
@@ -180,4 +168,74 @@ void printMetaData (struct awbMetaData meta)
 	printf ("Color Score Low CCT  : %d\tdistance : %f\n", meta.score.lowCCT,  meta.dist.lowCCT);
 	printf ("Color Score invalid  : %d\tdistance : %f\n", meta.score.invalid, meta.dist.invalid);
 
+}
+
+int applyCCM (struct awbMetaData meta, uint8_t *buf, dibHeader *dib)
+{
+	int illuminant = 0, ret = 0, i = 0, j = 0, max = 0;
+	int16_t tempR = 0, tempG = 0, tempB = 0;
+	int *scorePtr = NULL;
+	float *distPtr = NULL;
+	struct RGBPix *pix = NULL;
+	float newCCM[3][3] =  {0};
+	float CCT = 0;
+
+	pix = (struct RGBPix *) buf;
+	/* Initializations */
+	scorePtr = (int *)&(meta.score);
+	distPtr = (float *)&(meta.dist);
+
+	/* Find Dominant illuminant */
+	for (i = 0; i < NUM_ILLUMINANTS; i++) {
+		if (*(scorePtr + i) >= max) {
+			illuminant = i;
+			max = *(scorePtr + i);
+		}
+	}
+
+	if (*(distPtr + illuminant) >= 0) {
+		CCT = interpolate ( 0 , standardCCT[illuminant], refPtsDist[illuminant], standardCCT[illuminant+1], *(distPtr + illuminant));
+		/* Interpolate for new CCM */
+		for (i = 0; i < 3 ; i++) {
+			for (j = 0; j < 3 ; j++) {
+				newCCM[i][j] = interpolate (standardCCT[illuminant], rgbCCM[illuminant][i][j], standardCCT[illuminant+1], rgbCCM[illuminant+1][i][j], CCT);
+			}
+		}
+	} else {
+		CCT = interpolate ( 0 , standardCCT[illuminant], refPtsDist[illuminant-1], standardCCT[illuminant-1], -(*(distPtr + illuminant)));
+		/* Interpolate for new CCM */
+		for (i = 0; i < 3 ; i++) {
+			for (j = 0; j < 3 ; j++) {
+				newCCM[i][j] = interpolate (standardCCT[illuminant], rgbCCM[illuminant][i][j], standardCCT[illuminant-1], rgbCCM[illuminant-1][i][j], CCT);
+			}
+		}
+	}
+	printf ("\nNew CCM for CCT : %f is ...\n", CCT);
+	for (i = 0; i < 3 ; i++) {
+		printf ("|| ");
+		for (j = 0; j < 3 ; j++) {
+			printf (" %f |", newCCM[i][j]);
+		}
+		printf ("|\n");
+	}
+
+	/* Apply CCM to correct colors */
+	/* TODO: Clear Clutter <implement as matrix multiplication> */
+	for (i = 0; i < (dib->height * dib->width); i++) {
+		tempR = (pix->R * newCCM[0][0]) + (pix->G * newCCM[1][0]) + (pix->B * newCCM[2][0]);
+		tempG = (pix->R * newCCM[0][1]) + (pix->G * newCCM[1][1]) + (pix->B * newCCM[2][1]);
+		tempB = (pix->R * newCCM[0][2]) + (pix->G * newCCM[1][2]) + (pix->B * newCCM[2][2]);
+
+		tempR = (tempR>=0) ? tempR : 0;
+		tempG = (tempG>=0) ? tempG : 0;
+		tempB = (tempB>=0) ? tempB : 0;
+
+		pix->R = (tempR>=255) ? 255: tempR;
+		pix->G = (tempG>=255) ? 255: tempG;
+		pix->B = (tempB>=255) ? 255: tempB;
+
+		pix++;
+	}
+
+	return ret;
 }
