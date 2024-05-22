@@ -2,6 +2,8 @@
 #include "bmpHeader.h"
 #include <string.h>
 
+static int negHeightFlag = 0;
+
 /* To Display Contents of BMP Header */
 void displayHeader( bmpHeader *bmpHead )
 {
@@ -99,7 +101,12 @@ int saveImage (uint8_t *buf, bmpfileMagic *bmpMagic, bmpHeader *bmpHead, dibHead
 		ret = -1;
 		goto endGetImageSaveImage;
 	}
-	
+
+	if (negHeightFlag) {
+		dib->height = 0 - dib->height;
+		negHeightFlag = 0;
+	}
+
 	if (fwrite (bmpMagic, sizeof(bmpfileMagic), 1, fp) != 1) {
 		printf ("%s File Write error!\n", __func__);
 		ret = -1;
@@ -163,6 +170,12 @@ int getImage (uint8_t **buf, bmpfileMagic *bmpMagic, bmpHeader *bmpHead, dibHead
 
 	displayHeader(bmpHead);
 	displayDIBHeader(dib);
+
+	/* Some BMP images have negative Height to denote inversion*/
+	if ((int)dib->height < 0) {
+		dib->height = abs(dib->height);
+		negHeightFlag = 1;
+	}
 
 	*buf = (uint8_t*) malloc (sizeof(uint8_t) * dib->bmp_bytesz);
 	if (!*buf) {
